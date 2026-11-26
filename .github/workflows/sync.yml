@@ -2,7 +2,12 @@ name: naver2gcal-sync
 on:
   schedule:
     - cron: "17 * * * *"      # 보조: 외부 타이머가 주 트리거(5분), 이건 시간당 1회 안전망
-  workflow_dispatch: {}         # 외부 타이머(POST /dispatches)가 5분마다 호출
+  workflow_dispatch:            # 외부 타이머(POST /dispatches)가 5분마다 호출
+    inputs:
+      test_notify:
+        description: "텔레그램 시험 알림 보내기"
+        type: boolean
+        default: false
 concurrency:
   group: naver2gcal
   cancel-in-progress: false
@@ -65,6 +70,7 @@ jobs:
             elif [ "${GUARD:-}" = "1" ]; then msg="[캘린더 동기화] 대량 삭제 보호가 작동해 삭제를 보류했습니다."
             elif [ "$h" = "00" ] && [ $((10#$m)) -lt 5 ]; then msg="[캘린더 동기화] 정상 작동 중"; fi
           fi
+          [ "${{ github.event.inputs.test_notify }}" = "true" ] && msg="[캘린더 동기화] 시험 알림입니다. 알림이 정상적으로 연결되었습니다."
           if [ -n "$msg" ]; then
             curl -s -o /dev/null -w "텔레그램 응답: %{http_code}\n" "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" --data-urlencode "chat_id=${TG_CHAT}" --data-urlencode "text=${msg}"
           else
