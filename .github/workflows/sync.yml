@@ -1,0 +1,47 @@
+name: naver2gcal-sync
+on:
+  schedule:
+    - cron: "17 * * * *"      # 보조: 외부 타이머가 주 트리거(5분), 이건 시간당 1회 안전망
+  workflow_dispatch: {}         # 외부 타이머(POST /dispatches)가 5분마다 호출
+concurrency:
+  group: naver2gcal
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: sync
+        shell: bash
+        env:
+          NAVER_CALDAV_PASSWORD: ${{ secrets.NAVER_CALDAV_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          CONFIG_TOML: ${{ secrets.CONFIG_TOML }}
+        run: |
+          # 공개 저장소이므로 설정은 Secret에서 받고, 로그 원문(일정 제목·캘린더 ID 포함)은 출력하지 않는다.
+          printf '%s' "$CONFIG_TOML" > config.toml
+          set +e
+          python naver2gcal.py sync > /tmp/sync.log 2>&1
+          rc=$?
+          set -e
+          echo "종료 코드: $rc"
+          echo "요약: $(grep -cE '추가 [0-9]+ · 변경' /tmp/sync.log) 개 캘린더 처리"
+          if grep -q "보류했습니다" /tmp/sync.log; then echo "경고: 대량 삭제 보류 발생"; fi
+          if grep -qE '401|Unauthorized' /tmp/sync.log; then echo "오류 유형: 네이버 인증(401)"; fi
+          rm -f config.toml
+          exit $rc
+      # 공개 저장소는 60일 무활동 시 예약이 꺼진다. 실행마다 스스로 다시 켠다.
+      - name: keepalive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable "naver2gcal-sync" --repo "${{ github.repository }}" || true

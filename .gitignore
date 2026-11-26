@@ -1,0 +1,9 @@
+credentials.json
+service_account.json
+token*.json
+config.toml
+.venv/
+logs/
+export/
+__pycache__/
+*.pyc
