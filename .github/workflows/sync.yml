@@ -60,6 +60,7 @@ jobs:
           prev=$(gh run list --repo "${{ github.repository }}" --workflow sync.yml --status completed --limit 1 --json conclusion -q '.[0].conclusion' 2>/dev/null || echo "")
           h=$(date -u +%H); m=$(date -u +%M)
           msg=""
+          nl=$'\n'
           now=$(TZ=Asia/Seoul date '+%m/%d %H:%M')
           since=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
           total=$(gh run list --repo "${{ github.repository }}" --workflow sync.yml --status completed --created ">=$since" --limit 500 --json conclusion -q 'length' 2>/dev/null || echo "?")
@@ -67,22 +68,16 @@ jobs:
           if [ "$OUTCOME" = "failure" ]; then
             reason="원인을 아직 몰라요. GitHub 저장소의 Actions 탭에서 가장 최근 실행 기록을 확인해 주세요."
             [ "${AUTH401:-}" = "1" ] && reason="네이버 로그인 오류예요. 네이버 앱 비밀번호를 새로 만들어 GitHub 비밀값(NAVER_CALDAV_PASSWORD)에 다시 넣어 주세요."
-            if [ "$prev" != "failure" ]; then msg="⚠️ 캘린더 동기화가 멈췄어요 ($now)
-$reason"
-            elif [ $((10#$h % 6)) -eq 0 ] && [ $((10#$m)) -lt 5 ]; then msg="⚠️ 캘린더 동기화가 아직 멈춰 있어요 ($now)
-$reason"; fi
+            if [ "$prev" != "failure" ]; then msg="⚠️ 캘린더 동기화가 멈췄어요 ($now)${nl}$reason"
+            elif [ $((10#$h % 6)) -eq 0 ] && [ $((10#$m)) -lt 5 ]; then msg="⚠️ 캘린더 동기화가 아직 멈춰 있어요 ($now)${nl}$reason"; fi
           elif [ "$OUTCOME" = "success" ]; then
-            if [ "$prev" = "failure" ]; then msg="✅ 캘린더 동기화가 다시 정상이에요 ($now)
-멈춰 있던 동안 바뀐 일정도 함께 반영됐어요."
-            elif [ "${GUARD:-}" = "1" ]; then msg="🛑 일정이 한꺼번에 많이 지워질 뻔해서 막았어요 ($now)
-네이버에서 일정을 정리하신 거라면 그대로 두셔도 되고, 아니라면 확인해 주세요."
-            elif [ "$h" = "00" ] && [ $((10#$m)) -lt 5 ]; then msg="🟢 오늘도 정상이에요 ($now)
-지난 24시간 동안 ${total}번 중 ${ok}번 동기화에 성공했어요."; fi
+            if [ "$prev" = "failure" ]; then msg="✅ 캘린더 동기화가 다시 정상이에요 ($now)${nl}멈춰 있던 동안 바뀐 일정도 함께 반영됐어요."
+            elif [ "${GUARD:-}" = "1" ]; then msg="🛑 일정이 한꺼번에 많이 지워질 뻔해서 막았어요 ($now)${nl}네이버에서 일정을 정리하신 거라면 그대로 두셔도 되고, 아니라면 확인해 주세요."
+            elif [ "$h" = "00" ] && [ $((10#$m)) -lt 5 ]; then msg="🟢 오늘도 정상이에요 ($now)${nl}지난 24시간 동안 ${total}번 중 ${ok}번 동기화에 성공했어요."; fi
           fi
-          [ "${{ github.event.inputs.test_notify }}" = "true" ] && msg="🔔 시험 알림이에요 ($now)
-이 메시지가 보이면 알림이 정상으로 연결된 거예요."
+          [ "${{ github.event.inputs.test_notify }}" = "true" ] && msg="🔔 시험 알림이에요 ($now)${nl}이 메시지가 보이면 알림이 정상으로 연결된 거예요."
           if [ -n "$msg" ]; then
-            curl -s -o /dev/null -w "텔레그램 응답: %{http_code}\n" "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" --data-urlencode "chat_id=${TG_CHAT}" --data-urlencode "text=$(printf '%b' "$msg")"
+            curl -s -o /dev/null -w "텔레그램 응답: %{http_code}\n" "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" --data-urlencode "chat_id=${TG_CHAT}" --data-urlencode "text=${msg}"
           else
             echo "보낼 알림 없음"
           fi
